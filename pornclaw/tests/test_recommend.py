@@ -1,6 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
+from app.models import SeriesItem, SourceSession, UserFeedback
+from app.services.profile import build_profile_summary
 from app.services.recommend import rank_series
+from app.services.recommend import store_feedback
 
 
 def test_rank_series_prefers_matching_recent_active_series() -> None:
@@ -70,3 +75,51 @@ def test_rank_series_handles_normalized_datetimes() -> None:
     ranked = rank_series(series_pool, profile, top_k=1, reference_time=now)
 
     assert ranked[0]["score_breakdown"]["freshness_score"] > 0
+
+
+def test_store_feedback_rejects_series_from_other_session(db_session) -> None:
+    session_a = SourceSession(source_url="demo://a", source_name="demo-a", source_type="demo", status="completed")
+    session_b = SourceSession(source_url="demo://b", source_name="demo-b", source_type="demo", status="completed")
+    db_session.add_all([session_a, session_b])
+    db_session.commit()
+    db_session.refresh(session_a)
+    db_session.refresh(session_b)
+
+    foreign_series = SeriesItem(session_id=session_b.id, series_name="Foreign Series")
+    db_session.add(foreign_series)
+    db_session.commit()
+    db_session.refresh(foreign_series)
+
+    with pytest.raises(ValueError, match="does not belong to session"):
+        store_feedback(db_session, session_a.id, foreign_series.id, "like")
+
+
+def test_build_profile_summary_ignores_feedback_for_foreign_series(db_session) -> None:
+    session_a = SourceSession(source_url="demo://a", source_name="demo-a", source_type="demo", status="completed")
+    session_b = SourceSession(source_url="demo://b", source_name="demo-b", source_type="demo", status="completed")
+    db_session.add_all([session_a, session_b])
+    db_session.commit()
+    db_session.refresh(session_a)
+    db_session.refresh(session_b)
+
+    foreign_series = SeriesItem(
+        session_id=session_b.id,
+        series_name="Foreign Series",
+        tags_json='["fantasy"]',
+    )
+    db_session.add(foreign_series)
+    db_session.commit()
+    db_session.refresh(foreign_series)
+
+    db_session.add(
+        UserFeedback(
+            session_id=session_a.id,
+            series_id=foreign_series.id,
+            feedback_type="like",
+        )
+    )
+    db_session.commit()
+
+    summary = build_profile_summary(db_session, session_a.id)
+
+    assert summary["feedback_liked_series"] == []

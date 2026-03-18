@@ -73,6 +73,10 @@ def load_candidate_series(db: Session, session_id: int) -> list[dict]:
 
 
 def store_feedback(db: Session, session_id: int, series_id: int, feedback_type: str) -> dict:
+    series = db.get(SeriesItem, series_id)
+    if series is None or series.session_id != session_id:
+        raise ValueError(f"Series {series_id} does not belong to session {session_id}")
+
     db.add(UserFeedback(session_id=session_id, series_id=series_id, feedback_type=feedback_type))
     db.commit()
     return build_profile_summary(db, session_id)

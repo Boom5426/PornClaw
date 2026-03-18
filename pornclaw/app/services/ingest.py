@@ -88,7 +88,11 @@ def ingest_source(
         db.refresh(session)
         return session
     except Exception as exc:
+        db.rollback()
+        session = db.get(SourceSession, session.id) or session
         session.status = "failed"
         session.error_message = str(exc)
+        session.raw_items_count = 0
+        session.series_count = 0
         db.commit()
         raise AppError(str(exc)) from exc

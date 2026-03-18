@@ -54,14 +54,14 @@ def build_profile_summary(db: Session, session_id: int) -> dict:
         )
     ]
     liked_series = [
-        _series_to_profile_entry(db.get(SeriesItem, series_id))
+        entry
         for series_id in liked_series_ids
-        if db.get(SeriesItem, series_id)
+        if (entry := _series_to_profile_entry_for_session(db, session_id, series_id)) is not None
     ]
     disliked_series = [
-        _series_to_profile_entry(db.get(SeriesItem, series_id))
+        entry
         for series_id in disliked_series_ids
-        if db.get(SeriesItem, series_id)
+        if (entry := _series_to_profile_entry_for_session(db, session_id, series_id)) is not None
     ]
     return {
         "liked_tags": json.loads(profile.liked_tags_json) if profile else [],
@@ -78,3 +78,10 @@ def _series_to_profile_entry(series: SeriesItem) -> dict:
         "tags": json.loads(series.tags_json),
         "series_name": series.series_name,
     }
+
+
+def _series_to_profile_entry_for_session(db: Session, session_id: int, series_id: int) -> dict | None:
+    series = db.get(SeriesItem, series_id)
+    if series is None or series.session_id != session_id:
+        return None
+    return _series_to_profile_entry(series)

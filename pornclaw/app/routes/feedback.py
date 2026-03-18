@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -12,7 +12,10 @@ router = APIRouter(tags=["feedback"])
 
 @router.post("/feedback", response_model=FeedbackResponse)
 def create_feedback(payload: FeedbackRequest, db: Session = Depends(get_db)) -> FeedbackResponse:
-    summary = store_feedback(db, payload.session_id, payload.series_id, payload.feedback_type)
+    try:
+        summary = store_feedback(db, payload.session_id, payload.series_id, payload.feedback_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return FeedbackResponse(ok=True, updated_profile_summary=summary)
 
 
@@ -24,5 +27,8 @@ def create_feedback_from_form(
     next_path: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    store_feedback(db, session_id, series_id, feedback_type)
+    try:
+        store_feedback(db, session_id, series_id, feedback_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RedirectResponse(next_path, status_code=303)
