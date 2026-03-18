@@ -70,19 +70,25 @@ source_url + source_type + context
 
 ## 本地运行
 
-### Demo 模式
+### 推荐：一条命令启动
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python scripts/init_db.py
-uvicorn app.main:app --reload
+cd ..
+python dev.py
+```
+
+第一次运行会自动准备 `.venv`、安装依赖、初始化数据库，并尝试安装 Chromium。
+
+如果你只想跑 demo 或当前网络不适合装 Playwright：
+
+```bash
+cd ..
+python dev.py --skip-playwright
 ```
 
 浏览器打开 `http://127.0.0.1:8000`，保持默认 `demo://seed` 即可。
 
-### 真实平台模式
+### 手动模式
 
 ```bash
 python -m venv .venv
@@ -92,6 +98,8 @@ python -m playwright install chromium
 python scripts/init_db.py
 uvicorn app.main:app --reload
 ```
+
+如果你手动模式里只想先跑 demo，可以省略 `python -m playwright install chromium`。
 
 ## 环境变量
 
