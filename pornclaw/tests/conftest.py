@@ -8,8 +8,11 @@ from sqlalchemy.pool import StaticPool
 
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+REPO_ROOT = ROOT.parent
+
+for path in [str(REPO_ROOT), str(ROOT)]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 import app.models  # noqa: F401
 from app.db import Base
