@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 from app.adapters.base import BaseAdapter, SourceContext
 from app.config import settings
+from app.utils.datetime import coerce_utc_naive
 
 
 class TelegramChannelAdapter(BaseAdapter):
@@ -63,7 +64,7 @@ class TelegramChannelAdapter(BaseAdapter):
             "title": title or f"Message {message.id}",
             "detail_url": f"https://t.me/{username}/{message.id}",
             "cover_url": "",
-            "publish_time": getattr(message, "date", None),
+            "publish_time": coerce_utc_naive(getattr(message, "date", None)),
             "author_or_group": getattr(entity, "title", username),
             "tags_raw": hashtags,
             "description_raw": raw_text,

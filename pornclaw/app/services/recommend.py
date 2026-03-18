@@ -9,6 +9,7 @@ from app.config import settings
 from app.models import Recommendation, SeriesItem, UserFeedback
 from app.services.explain import build_recommendation_reason
 from app.services.profile import build_profile_summary
+from app.utils.datetime import coerce_utc_naive
 
 
 def rank_series(
@@ -17,7 +18,7 @@ def rank_series(
     top_k: int = 5,
     reference_time: datetime | None = None,
 ) -> list[dict]:
-    now = reference_time or datetime.utcnow()
+    now = coerce_utc_naive(reference_time or datetime.utcnow()) or datetime.utcnow()
     ranked = []
     prior_like_tags = {
         tag for entry in profile.get("feedback_liked_series", []) for tag in entry.get("tags", [])
@@ -27,7 +28,8 @@ def rank_series(
     }
     for series in series_pool:
         tags = set(series.get("tags", []))
-        freshness_days = (now - series.get("latest_update_time", now)).days if series.get("latest_update_time") else 999
+        latest_update_time = coerce_utc_naive(series.get("latest_update_time"))
+        freshness_days = (now - latest_update_time).days if latest_update_time else 999
         freshness_score = max(0.0, 5.0 - min(freshness_days, 10) * 0.5)
         positive_tag_score = len(tags & set(profile.get("liked_tags", []))) * 2.5
         negative_penalty = len(tags & set(profile.get("disliked_tags", []))) * -4.0
@@ -63,7 +65,10 @@ def rank_series(
 def load_candidate_series(db: Session, session_id: int) -> list[dict]:
     series_rows = db.scalars(select(SeriesItem).where(SeriesItem.session_id == session_id)).all()
     items = [_series_model_to_dict(row) for row in series_rows]
-    items.sort(key=lambda item: (item["update_count_7d"], item["latest_update_time"] or datetime.min), reverse=True)
+    items.sort(
+        key=lambda item: (item["update_count_7d"], coerce_utc_naive(item["latest_update_time"]) or datetime.min),
+        reverse=True,
+    )
     return items[: max(settings.candidate_sample_size, 1)]
 
 
@@ -116,7 +121,7 @@ def _series_model_to_dict(row: SeriesItem) -> dict:
         "id": row.id,
         "series_name": row.series_name,
         "representative_cover": row.representative_cover,
-        "latest_update_time": row.latest_update_time,
+        "latest_update_time": coerce_utc_naive(row.latest_update_time),
         "update_count_7d": row.update_count_7d,
         "tags": json.loads(row.tags_json),
         "source_urls": json.loads(row.source_urls_json),

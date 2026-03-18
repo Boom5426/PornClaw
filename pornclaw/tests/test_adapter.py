@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -156,6 +156,26 @@ def test_generic_template_adapter_parses_card_style_listing() -> None:
     assert "fantasy" in items[0]["tags_raw"]
 
 
+def test_generic_template_adapter_parses_offset_datetime_without_mixing_timezones() -> None:
+    adapter = GenericTemplateAdapter(
+        fetcher=lambda url: """
+        <html><body>
+          <article>
+            <a class="title" href="/series/entry-1">Entry 1</a>
+            <time datetime="2026-03-18T09:00:00+00:00">2026-03-18</time>
+          </article>
+        </body></html>
+        """,
+    )
+
+    items = adapter.fetch_recent_items(
+        "https://example.com/feed",
+        SourceContext(source_type="generic_template", fetch_detail_pages=False),
+    )
+
+    assert items[0]["publish_time"].tzinfo is None
+
+
 def test_generic_template_adapter_enriches_from_detail_pages_for_list_style_sites() -> None:
     html_map = {
         "https://example.com/feed": LISTING_WITH_DETAIL_HTML,
@@ -222,6 +242,32 @@ def test_telegram_adapter_maps_public_channel_messages_to_item_schema() -> None:
     assert items[0]["detail_url"] == "https://t.me/examplechannel/15"
     assert items[0]["author_or_group"] == "Example Channel"
     assert set(items[0]["tags_raw"]) == {"romance", "school"}
+
+
+def test_telegram_adapter_normalizes_aware_message_datetime() -> None:
+    fake_message = SimpleNamespace(
+        id=16,
+        message="Episode 16 #fantasy",
+        date=datetime(2026, 3, 18, 8, 0, 0, tzinfo=timezone.utc),
+        photo=None,
+        media=SimpleNamespace(),
+    )
+
+    class FakeClient:
+        async def get_entity(self, username: str):
+            return SimpleNamespace(title="Example Channel", username=username)
+
+        async def get_messages(self, entity, limit: int):
+            return [fake_message]
+
+    adapter = TelegramChannelAdapter(client_factory=lambda context: FakeClient())
+
+    items = adapter.fetch_recent_items(
+        "https://t.me/examplechannel",
+        SourceContext(source_type="telegram", max_items=5, credential_profile="telegram_default"),
+    )
+
+    assert items[0]["publish_time"].tzinfo is None
 
 
 def test_telegram_adapter_requires_server_side_credentials() -> None:

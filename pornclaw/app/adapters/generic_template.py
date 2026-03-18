@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup, Tag
 
 from app.adapters.base import BaseAdapter, SourceContext
 from app.config import settings
+from app.utils.datetime import coerce_utc_naive
 
 
 class GenericTemplateAdapter(BaseAdapter):
@@ -172,7 +173,7 @@ class GenericTemplateAdapter(BaseAdapter):
         if not cleaned:
             return None
         try:
-            return datetime.fromisoformat(cleaned)
+            return coerce_utc_naive(datetime.fromisoformat(cleaned))
         except ValueError:
             return None
 
