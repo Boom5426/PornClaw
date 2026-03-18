@@ -36,6 +36,15 @@ Telegram 当前只支持公开频道根地址，不支持：
 - 私有群
 - Bot API 模式
 
+## 运行时约束
+
+- `demo` 只接受 `demo://...`，不会再把任意 `http/https` 页面按 demo source 抓取。
+- `generic_template` 只处理普通 `http/https` 页面；显式指定 adapter 时，URL 也必须满足该 adapter 自己的校验。
+- `pornhub` 只接受真实 `pornhub.com` 或其子域名，不接受仅仅“字符串后缀像 pornhub”的域名。
+- `telegram` 只接受 `https://t.me/<username>` / `https://telegram.me/<username>` 这类公开频道地址。
+- 反馈要求 `series_id` 必须属于当前 `session_id`，跨 session 的反馈会被拒绝。
+- 所有发布时间在进入聚合和推荐前都会先归一化，避免时区时间和无时区时间混用导致排序或打分异常。
+
 ## Adapter 是怎么被选中的
 
 流程如下：
@@ -163,6 +172,8 @@ Telegram 官方 API：
 ### 数据源 URL 非法
 
 - 检查 `source_type` 是否和 URL 对得上
+- `demo` 只能用 `demo://...`
+- `pornhub` 必须是 `pornhub.com` 或其子域名
 - Telegram 只支持 `https://t.me/<username>`
 
 ### 抓取为空
@@ -188,6 +199,11 @@ Telegram 官方 API：
 - 调高 `REQUEST_TIMEOUT_SECONDS`
 - 检查目标站点是否可访问
 - 对需要浏览器抓取的站点确认 Chromium 已安装
+
+### 反馈提交失败
+
+- 检查当前提交的 `series_id` 是否来自同一个 `session_id`
+- 未知 `feedback_type` 会在 API 层直接被拒绝
 
 ## 测试
 
