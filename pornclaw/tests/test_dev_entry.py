@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -71,3 +72,94 @@ def test_skip_playwright_disables_browser_install_branch(tmp_path: Path) -> None
     app_dir.mkdir()
 
     assert needs_playwright_install(app_dir, skip_playwright=True) is False
+
+
+def test_first_run_bootstraps_and_starts_server(monkeypatch, tmp_path: Path) -> None:
+    dev = _load_dev_module()
+    main = _require_attr(dev, "main")
+
+    repo_root = tmp_path
+    app_dir = repo_root / "pornclaw"
+    (app_dir / "scripts").mkdir(parents=True)
+    (app_dir / "requirements.txt").write_text("fastapi==0.115.6\n", encoding="utf-8")
+
+    calls: list[tuple[list[str], Path, str]] = []
+    monkeypatch.setattr(
+        dev,
+        "run_checked",
+        lambda cmd, cwd, label: calls.append((cmd, cwd, label)),
+        raising=False,
+    )
+
+    main(["--skip-playwright"], root_dir=repo_root)
+
+    venv_python = app_dir / ".venv" / "bin" / "python"
+    assert calls == [
+        ([dev.sys.executable, "-m", "venv", ".venv"], app_dir, "Ensuring virtual environment"),
+        ([str(venv_python), "-m", "pip", "install", "-r", "requirements.txt"], app_dir, "Installing Python dependencies"),
+        ([str(venv_python), "scripts/init_db.py"], app_dir, "Initializing database"),
+        ([str(venv_python), "-m", "uvicorn", "app.main:app", "--reload"], app_dir, "Starting development server"),
+    ]
+
+
+def test_playwright_failure_warns_but_does_not_block_server_start(
+    monkeypatch,
+    capsys,
+    tmp_path: Path,
+) -> None:
+    dev = _load_dev_module()
+    main = _require_attr(dev, "main")
+
+    repo_root = tmp_path
+    app_dir = repo_root / "pornclaw"
+    (app_dir / "scripts").mkdir(parents=True)
+    (app_dir / "requirements.txt").write_text("fastapi==0.115.6\n", encoding="utf-8")
+    (app_dir / ".venv" / "bin").mkdir(parents=True)
+    (app_dir / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+
+    calls: list[tuple[list[str], Path, str]] = []
+
+    def fake_run_checked(cmd, cwd, label):
+        calls.append((cmd, cwd, label))
+        if label == "Ensuring Playwright Chromium":
+            raise subprocess.CalledProcessError(returncode=1, cmd=cmd)
+
+    monkeypatch.setattr(dev, "run_checked", fake_run_checked, raising=False)
+
+    main([], root_dir=repo_root)
+
+    stderr = capsys.readouterr().err.lower()
+    assert "warning" in stderr
+    assert any(label == "Starting development server" for _, _, label in calls)
+
+
+def test_reuses_existing_environment_without_reinstalling_everything(monkeypatch, tmp_path: Path) -> None:
+    dev = _load_dev_module()
+    main = _require_attr(dev, "main")
+
+    repo_root = tmp_path
+    app_dir = repo_root / "pornclaw"
+    (app_dir / "scripts").mkdir(parents=True)
+    (app_dir / "requirements.txt").write_text("fastapi==0.115.6\n", encoding="utf-8")
+    (app_dir / ".venv" / "bin").mkdir(parents=True)
+    (app_dir / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    (app_dir / ".dev-state").mkdir(parents=True)
+    requirements_hash = hashlib.sha256((app_dir / "requirements.txt").read_bytes()).hexdigest()
+    (app_dir / ".dev-state" / "requirements.sha256").write_text(requirements_hash, encoding="utf-8")
+    (app_dir / ".dev-state" / "playwright-chromium.ok").write_text("ok\n", encoding="utf-8")
+
+    calls: list[tuple[list[str], Path, str]] = []
+    monkeypatch.setattr(
+        dev,
+        "run_checked",
+        lambda cmd, cwd, label: calls.append((cmd, cwd, label)),
+        raising=False,
+    )
+
+    main([], root_dir=repo_root)
+
+    venv_python = app_dir / ".venv" / "bin" / "python"
+    assert calls == [
+        ([str(venv_python), "scripts/init_db.py"], app_dir, "Initializing database"),
+        ([str(venv_python), "-m", "uvicorn", "app.main:app", "--reload"], app_dir, "Starting development server"),
+    ]

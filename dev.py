@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 
 def repo_root() -> Path:
@@ -13,7 +17,7 @@ def app_root(root: Path | None = None) -> Path:
 
 
 def venv_python(app_dir: Path) -> Path:
-    if Path().anchor == "\\":
+    if os.name == "nt":
         return app_dir / ".venv" / "Scripts" / "python.exe"
     return app_dir / ".venv" / "bin" / "python"
 
@@ -59,3 +63,57 @@ def needs_playwright_install(app_dir: Path, skip_playwright: bool) -> bool:
 def mark_playwright_ready(app_dir: Path) -> None:
     state_dir(app_dir).mkdir(parents=True, exist_ok=True)
     playwright_marker_path(app_dir).write_text("ok\n", encoding="utf-8")
+
+
+def run_checked(cmd: list[str], cwd: Path, label: str) -> None:
+    print(label)
+    subprocess.run(cmd, cwd=str(cwd), check=True)
+
+
+def main(argv: list[str] | None = None, root_dir: Path | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Start PornClaw development environment")
+    parser.add_argument("--skip-playwright", action="store_true", help="Skip Playwright Chromium installation")
+    args = parser.parse_args(argv)
+
+    root = root_dir or repo_root()
+    app_dir = app_root(root)
+
+    if not (app_dir / ".venv").exists():
+        run_checked([sys.executable, "-m", "venv", ".venv"], app_dir, "Ensuring virtual environment")
+
+    python_path = venv_python(app_dir)
+
+    if needs_requirements_install(app_dir):
+        run_checked(
+            [str(python_path), "-m", "pip", "install", "-r", "requirements.txt"],
+            app_dir,
+            "Installing Python dependencies",
+        )
+        write_requirements_marker(app_dir)
+
+    run_checked([str(python_path), "scripts/init_db.py"], app_dir, "Initializing database")
+
+    if needs_playwright_install(app_dir, skip_playwright=args.skip_playwright):
+        try:
+            run_checked(
+                [str(python_path), "-m", "playwright", "install", "chromium"],
+                app_dir,
+                "Ensuring Playwright Chromium",
+            )
+            mark_playwright_ready(app_dir)
+        except subprocess.CalledProcessError:
+            print(
+                "Warning: Playwright Chromium install failed; browser-backed sources may be unavailable.",
+                file=sys.stderr,
+            )
+
+    run_checked(
+        [str(python_path), "-m", "uvicorn", "app.main:app", "--reload"],
+        app_dir,
+        "Starting development server",
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
