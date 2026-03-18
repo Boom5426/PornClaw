@@ -18,12 +18,11 @@ class PornhubAdapter(BaseAdapter):
         self.fetcher = fetcher
 
     def supports(self, url: str, source_type: str) -> bool:
-        host = urlparse(url).netloc.lower()
-        return host.endswith("pornhub.com") and source_type in {"auto", "pornhub"}
+        return self._matches_supported_host(url) and source_type in {"auto", "pornhub"}
 
     def validate_source(self, url: str, context: SourceContext) -> bool:
         parsed = urlparse(url)
-        return parsed.scheme in {"http", "https"} and parsed.netloc.lower().endswith("pornhub.com")
+        return parsed.scheme in {"http", "https"} and self._matches_supported_host(url)
 
     def detect_source_name(self, url: str, context: SourceContext | None = None) -> str:
         return "pornhub"
@@ -93,3 +92,7 @@ class PornhubAdapter(BaseAdapter):
     def _extract_viewkey(self, href: str) -> str:
         query = parse_qs(urlparse(href).query)
         return query.get("viewkey", [""])[0]
+
+    def _matches_supported_host(self, url: str) -> bool:
+        host = urlparse(url).netloc.lower()
+        return host == "pornhub.com" or host.endswith(".pornhub.com")

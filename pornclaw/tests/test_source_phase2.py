@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.adapters.pornhub import PornhubAdapter
 from app.main import app
 from app.schemas.source import SourceIngestRequest
 
@@ -32,3 +33,22 @@ def test_source_ingest_api_accepts_phase2_payload() -> None:
     assert body["status"] == "completed"
     assert body["raw_items_count"] >= 1
     assert body["adapter_name"] == "demo-source"
+
+
+def test_source_ingest_rejects_unsafe_explicit_source(monkeypatch) -> None:
+    def fail_fetch(self, url, context):
+        raise AssertionError("fetch_recent_items should not be called for an invalid source")
+
+    monkeypatch.setattr(PornhubAdapter, "fetch_recent_items", fail_fetch)
+    client = TestClient(app)
+
+    response = client.post(
+        "/source/ingest",
+        json={
+            "source_url": "https://evilpornhub.com/x",
+            "source_type": "pornhub",
+            "context": {},
+        },
+    )
+
+    assert response.status_code == 400

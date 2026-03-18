@@ -61,10 +61,7 @@ class DemoSourceAdapter(BaseAdapter):
         return url.startswith("demo://") or source_type == "demo"
 
     def validate_source(self, url: str, context: SourceContext) -> bool:
-        if url.startswith("demo://"):
-            return True
-        parsed = urlparse(url)
-        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+        return url.startswith("demo://")
 
     def detect_source_name(self, url: str, context: SourceContext | None = None) -> str:
         if url.startswith("demo://"):

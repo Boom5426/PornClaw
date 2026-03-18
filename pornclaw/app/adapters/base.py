@@ -3,6 +3,21 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off", ""}:
+        return False
+
+    raise ValueError(f"Invalid boolean value: {value!r}")
+
+
 @dataclass(slots=True)
 class SourceContext:
     source_type: str = "auto"
@@ -21,7 +36,7 @@ class SourceContext:
             credential_profile=payload.pop("credential_profile", None),
             cookies_mode=payload.pop("cookies_mode", "none"),
             max_items=int(payload.pop("max_items", 20) or 20),
-            fetch_detail_pages=bool(payload.pop("fetch_detail_pages", True)),
+            fetch_detail_pages=_coerce_bool(payload.pop("fetch_detail_pages", True), default=True),
             channel_or_feed_hint=payload.pop("channel_or_feed_hint", None),
             extra=payload,
         )

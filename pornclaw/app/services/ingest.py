@@ -19,8 +19,16 @@ def ingest_source(
     source_type: str = "auto",
     context_payload: dict | None = None,
 ) -> SourceSession:
-    context = SourceContext.from_payload(source_type=source_type, context=context_payload)
-    adapter = get_adapter_for_source(source_url, context)
+    try:
+        context = SourceContext.from_payload(source_type=source_type, context=context_payload)
+    except ValueError as exc:
+        raise AppError("数据源参数非法。") from exc
+
+    try:
+        adapter = get_adapter_for_source(source_url, context)
+    except ValueError as exc:
+        raise AppError("数据源 URL 非法。") from exc
+
     if not adapter.validate_source(source_url, context):
         raise AppError("数据源 URL 非法。")
     session = SourceSession(

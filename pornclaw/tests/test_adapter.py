@@ -112,6 +112,31 @@ def test_adapter_registry_selects_expected_adapter_for_source_type_and_url() -> 
     )
 
 
+def test_source_context_parses_boolean_like_values() -> None:
+    assert SourceContext.from_payload(context={"fetch_detail_pages": False}).fetch_detail_pages is False
+    assert SourceContext.from_payload(context={"fetch_detail_pages": "false"}).fetch_detail_pages is False
+    assert SourceContext.from_payload(context={"fetch_detail_pages": "0"}).fetch_detail_pages is False
+    assert SourceContext.from_payload(context={"fetch_detail_pages": "true"}).fetch_detail_pages is True
+
+
+def test_pornhub_adapter_rejects_suffix_trick_host() -> None:
+    adapter = PornhubAdapter(fetcher=lambda url: "")
+
+    assert (
+        adapter.validate_source(
+            "https://evilpornhub.com/model/example/videos",
+            SourceContext(source_type="pornhub"),
+        )
+        is False
+    )
+
+
+def test_demo_adapter_only_allows_demo_scheme_for_demo_source() -> None:
+    adapter = DemoSourceAdapter()
+
+    assert adapter.validate_source("https://example.com/feed", SourceContext(source_type="demo")) is False
+
+
 def test_generic_template_adapter_parses_card_style_listing() -> None:
     adapter = GenericTemplateAdapter(
         fetcher=lambda url: CARD_LISTING_HTML,
