@@ -5,43 +5,50 @@
 <h1 align="center">PornClaw</h1>
 
 <p align="center">
-  <b>Smart Series Recommendation Engine for Adult Content Sites</b>
+  <b>Multi-Strategy Series Recommendation Engine for Adult Content Sources</b>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" />
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white" />
   <img src="https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white" />
-  <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" />
+  <img src="https://img.shields.io/badge/Playwright-enabled-2EAD33" />
+  <img src="https://img.shields.io/badge/Telegram-Telethon-26A5E4" />
   <img src="https://img.shields.io/badge/license-MIT-green" />
 </p>
 
 ---
 
-PornClaw 是一个面向成人内容站点的系列推荐引擎原型。
+PornClaw 是一个面向成人内容站点和频道源的系列推荐引擎原型。
 
-它解决的是一个很具体的问题：用户给出一个内容站点 URL，系统抓取最近更新的内容，把零散条目归并成“系列”，结合用户标签偏好、自然语言偏好和交互反馈，给出可解释的 Top 5 推荐。
+它的目标不是做“万能爬虫”，而是把不同类型的数据源统一接进同一条推荐闭环：
 
-如果你是第一次打开这个仓库，先看下面这三件事就够了：
+1. 输入数据源
+2. 抓取最近内容
+3. 归并为系列
+4. 收集用户偏好与反馈
+5. 输出可解释的 Top 5 推荐
+
+如果你第一次打开这个仓库，先看这三件事：
 
 1. 进入 `pornclaw/`
-2. 用 `demo://seed` 跑通完整流程
-3. 打开浏览器看首页、候选反馈页和推荐结果页
+2. 用 `demo://seed` 跑通 2 分钟演示
+3. 再决定要不要接真实源，例如通用 HTML 页面、Pornhub、Telegram 公开频道
 
-## 这项目现在能做什么
+## 当前支持哪些数据源
 
-- 输入一个数据源 URL
-- 抓取最近内容并落库
-- 标准化标签并聚合为系列
-- 支持喜欢标签、不喜欢标签和一句自然语言偏好
-- 支持候选反馈和推荐反馈
-- 输出带理由的 Top 5 推荐
-- 提供 API 和网页两种使用方式
-- 内置 `demo://seed` 演示数据源，开箱即用
+| Source Type | 输入示例 | 是否需要额外认证 | 适合场景 |
+|---|---|---:|---|
+| `demo` | `demo://seed` | 否 | 2 分钟演示、验证闭环 |
+| `generic_template` | `https://example.com/feed` | 否 | 常见卡片流/列表流 HTML 站点 |
+| `pornhub` | `https://www.pornhub.com/model/<name>/videos` | 否 | 公开可访问的 Pornhub 列表页 |
+| `telegram` | `https://t.me/<channel_name>` | 是 | Telegram 公开频道抓取 |
 
-## 先看这里：最快跑起来
+这里的“template adapter”指的是**外部站点 HTML 提取模板**，不是 Jinja 页面模板。
 
-### 方式一：本地运行
+## 最快跑起来
+
+### 路线 A：2 分钟演示模式
 
 ```bash
 cd pornclaw
@@ -52,60 +59,102 @@ python scripts/init_db.py
 uvicorn app.main:app --reload
 ```
 
-打开 `http://127.0.0.1:8000`
+打开 `http://127.0.0.1:8000`，保持默认数据源 `demo://seed`，直接点“抓取并开始推荐”。
 
-首页默认已经填好了演示数据源 `demo://seed`，你直接点“抓取并开始推荐”就能体验完整闭环。
+### 路线 B：真实数据源模式
 
-### 方式二：Docker
+如果你要接真实站点：
 
 ```bash
 cd pornclaw
-docker compose up --build
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m playwright install chromium
+python scripts/init_db.py
+uvicorn app.main:app --reload
 ```
 
-然后访问 `http://127.0.0.1:8000`
+然后：
 
-## 第一次使用时你会看到什么
+- 通用模板站点示例：`https://example.com/feed`
+- Pornhub 示例：`https://www.pornhub.com/model/<name>/videos`
+- Telegram 示例：`https://t.me/<public_channel_name>`
 
-完整流程是这样的：
+Telegram 这条路径需要你先配置开发者凭证，见下文“配置 / 环境变量”。
 
-1. 在首页输入 URL、喜欢标签、不喜欢标签和一句自然语言偏好
-2. 系统抓取最近内容，并自动聚合成系列
-3. 进入候选反馈页，对少量系列点“喜欢 / 不喜欢 / 跳过”
-4. 系统生成 Top 5 推荐，并显示每条推荐理由
-5. 你可以继续在推荐页点“喜欢这类 / 少推这类 / 不感兴趣”
-6. 再次生成推荐时，上一轮反馈会影响排序
+## 第一次使用会发生什么
 
-如果你只是想确认应用能不能跑：
+1. 首页输入 `source_url`
+2. 按需选择 `source_type`
+3. 在“高级数据源设置”里设置：
+   - `credential_profile`
+   - `max_items`
+   - 是否抓详情页
+4. 系统自动选择 adapter
+5. 抓取结果先标准化，再聚合到系列层级
+6. 你在候选页和推荐页继续反馈，下一轮排序会变
 
-- 数据源 URL 保持默认 `demo://seed`
+如果你只想验活：
+
+- 保持 `source_url = demo://seed`
+- `source_type = demo`
 - 随便勾两个喜欢标签
 - 点“抓取并开始推荐”
-- 候选页随便点几次反馈
-- 进入推荐页看 Top 5 和理由
 
-## Demo 数据源说明
+## 配置 / 环境变量
 
-为了保证新用户第一次运行就能成功，仓库内置了一个演示数据源：
+基础运行参数：
 
-- 使用方式：在首页填 `demo://seed`
-- 作用：不依赖外部站点，也不依赖站点页面稳定性
-- 内容：内置了 3 个演示系列，足够跑完整个推荐闭环
+| Name | Purpose | Default |
+|---|---|---|
+| `DATABASE_URL` | SQLite 路径或其他数据库连接串 | `sqlite:///./pornclaw.db` |
+| `SECRET_KEY` | 应用密钥 | `dev-secret` |
+| `REQUEST_TIMEOUT_SECONDS` | HTTP 抓取超时 | `10` |
+| `REQUEST_RETRIES` | 抓取重试次数 | `2` |
+| `CANDIDATE_SAMPLE_SIZE` | 候选反馈页卡片数 | `8` |
+| `RECOMMENDATION_LIMIT` | 推荐返回数量 | `5` |
+| `ADAPTER_USER_AGENT` | 对外抓取时使用的 UA | `PornClaw/2.0 ...` |
+| `PLAYWRIGHT_HEADLESS` | 是否启用无头浏览器 | `true` |
 
-当前演示系列包括：
+Telegram 官方 API 参数：
 
-- `Campus Hearts`：romance, school, drama, longform
-- `Sky Tale`：fantasy, soft, longform
-- `Dark Dungeon`：dark, action, explicit
+| Name | Purpose |
+|---|---|
+| `TELEGRAM_API_ID` | Telegram developer API ID |
+| `TELEGRAM_API_HASH` | Telegram developer API hash |
+| `TELEGRAM_SESSION_STRING` | Telethon StringSession，可选 |
+| `TELEGRAM_SESSION_FILE` | Telethon session 文件路径，可选 |
 
-## 这个仓库怎么组织
+说明：
 
-这个仓库分成两层：
+- Telegram 二期使用的是 **Telethon + 官方客户端 API**，不是 Bot API。
+- 你需要先登录 `https://my.telegram.org` 创建开发者应用，拿到 `api_id` / `api_hash`。
+- 请求里只传 `credential_profile`，不会把明文凭证写进数据库。
 
-- 根目录：项目说明、资产文件、技能文档
-- `pornclaw/`：真正的 Python Web 应用代码
+## 支持矩阵背后的接入策略
 
-如果你是来跑程序的，主要关注 `pornclaw/`
+PornClaw 二期不是“一个 adapter 通吃全部平台”，而是三层策略并存：
+
+- `DemoSourceAdapter`
+  - 保证零依赖演示可用
+- `GenericTemplateAdapter`
+  - 处理卡片流优先、列表流降级补全的站点
+- `PornhubAdapter`
+  - 专门处理 Pornhub 公开页面，优先走站点专用解析和浏览器抓取
+- `TelegramChannelAdapter`
+  - 通过 Telethon 读取公开频道消息流
+
+统一流程仍然相同：
+
+```text
+source_url/source_type/context
+  -> adapter registry 选择实际 adapter
+  -> fetch recent items
+  -> normalize
+  -> aggregate by series
+  -> recommend + explain
+```
 
 ## 常用命令
 
@@ -130,6 +179,13 @@ cd pornclaw
 pytest
 ```
 
+### 安装 Playwright 浏览器
+
+```bash
+cd pornclaw
+python -m playwright install chromium
+```
+
 ### Docker 启动
 
 ```bash
@@ -137,108 +193,85 @@ cd pornclaw
 docker compose up --build
 ```
 
-## 对外接口
-
-除了网页页面，项目也提供后端接口，便于后续接前端或自动化脚本：
+## API 概览
 
 | Method | Path | Description |
-|--------|------|-------------|
+|---|---|---|
 | `GET` | `/` | 首页表单 |
 | `POST` | `/start` | 从网页启动完整流程 |
+| `POST` | `/source/ingest` | 抓取并创建 session |
+| `POST` | `/profile/create` | 创建/更新画像 |
+| `POST` | `/recommend` | 生成推荐 |
+| `POST` | `/feedback` | 提交反馈 |
 | `GET` | `/candidate-feedback/{id}` | 候选反馈页 |
 | `GET` | `/recommendations/{id}` | 推荐结果页 |
-| `POST` | `/source/ingest` | 抓取并创建 session |
-| `POST` | `/profile/create` | 创建或更新用户画像 |
-| `POST` | `/recommend` | 生成推荐结果 |
-| `POST` | `/feedback` | 提交反馈 |
 
-## 核心流程
+二期 ingest 输入现在至少支持：
 
-```text
-用户输入 URL + 标签偏好 + 自然语言偏好
-  → Source Adapter 抓取最近条目
-  → Normalize 清洗标题 / 标签
-  → Aggregate 聚合为系列
-  → 候选反馈补充用户画像
-  → Recommend 多维度加权评分
-  → Explain 生成推荐理由
-  → 推荐结果页反馈 → 影响下一轮排序
-```
+- `source_url`
+- `source_type`
+- `context`
 
-## 推荐是怎么打分的
+## 推荐打分仍然保持可解释
 
-当前是第一阶段原型，所以推荐逻辑刻意保持可解释、可调试，不使用黑盒模型。
+PornClaw 现在仍然是规则推荐，不是黑盒模型。
 
 | 维度 | 计算方式 | 权重 |
-|------|---------|------|
+|---|---|---|
 | 新鲜度 | `5.0 - 0.5 × min(days_old, 10)` | 基础分 |
 | 标签匹配 | 命中喜欢标签 / 不喜欢标签 | `+2.5 / -4.0` |
-| 反馈相似度 | 与已反馈喜欢/不喜欢系列的标签重合 | `+1.5 / -2.0` |
+| 反馈相似度 | 与已反馈系列标签重合 | `+1.5 / -2.0` |
 | 活跃度 | `min(7d_updates, 5) × 0.8` | 加分 |
-| 多样性控制 | 与已喜欢系列标签过于重叠时轻微惩罚 | `-0.3` |
+| 多样性控制 | 与已喜欢系列标签过度重叠时轻惩罚 | `-0.3` |
 
-每条推荐都会保存评分拆解和理由文本，方便调试和解释。
+## 当前状态
 
-## 技术栈
+当前仓库已经进入第二阶段：
 
-| Component | Technology |
-|-----------|-----------|
-| Web Framework | FastAPI 0.115 |
-| Server | Uvicorn |
-| ORM | SQLAlchemy 2.0 |
-| Database | SQLite |
-| Templating | Jinja2 |
-| HTML Parsing | BeautifulSoup4 |
-| Testing | pytest + httpx |
-| Container | Docker Compose |
+- 一期 demo 闭环保留
+- 已支持多策略 adapter 框架
+- 已支持：
+  - demo
+  - generic HTML template
+  - Pornhub
+  - Telegram public channel
+
+仍然属于原型阶段，不包含：
+
+- 多用户系统
+- 云部署
+- 私有 Telegram 群/邀请链接
+- Pornhub 登录态和私有内容
+- 复杂 ML 模型
 
 ## Project Structure
 
-只有在你准备看代码时，这一节才需要仔细读。
+准备读代码时再看这一节。
 
 ```text
 pornclaw/
 ├── app/
-│   ├── main.py                    # FastAPI 入口
-│   ├── config.py                  # 配置和标签映射
-│   ├── db.py                      # 数据库初始化
-│   ├── models/                    # SQLAlchemy ORM 模型
-│   ├── services/                  # 核心业务逻辑
-│   │   ├── ingest.py              # 抓取入库编排
-│   │   ├── normalize.py           # 标签与标题清洗
-│   │   ├── aggregate.py           # 系列聚合
-│   │   ├── profile.py             # 用户画像
-│   │   ├── recommend.py           # 评分与排序
-│   │   ├── explain.py             # 推荐理由生成
-│   │   └── preference_parser.py   # 自然语言偏好解析
-│   ├── adapters/                  # 数据源适配器
-│   ├── routes/                    # HTTP 路由
-│   ├── templates/                 # Jinja2 模板
-│   ├── static/                    # CSS
-│   └── utils/                     # 通用工具
-├── tests/                         # 最小测试集
-├── scripts/init_db.py             # 数据库初始化脚本
+│   ├── adapters/      # 多策略 source adapters
+│   ├── routes/        # 页面和 API 入口
+│   ├── services/      # ingest/normalize/recommend 主逻辑
+│   ├── models/        # SQLAlchemy 模型
+│   ├── templates/     # 页面模板
+│   └── static/        # 样式
+├── tests/
+├── scripts/
 ├── requirements.txt
 ├── Dockerfile
 └── docker-compose.yml
 ```
 
-## 当前状态
-
-这个项目目前是“第一阶段闭环原型”：
-
-- 重点是证明产品方向能跑通
-- 优先本地可运行、逻辑清晰、推荐可解释
-- 还没有做复杂模型、多用户系统、云部署或多站点并行抓取
-
 ## Roadmap
 
-- [ ] 扩展成更稳的真实站点模板适配器
-- [ ] 增加更多 Source Adapter
+- [ ] 把 generic template adapter 做成可配置模板库
+- [ ] 给 Pornhub adapter 增加更稳的页面快照/录制测试
+- [ ] 给 Telegram adapter 增加真实凭证集成测试
+- [ ] 增加 cookies / proxy / header profile 支持
 - [ ] 优化系列归并规则
-- [ ] 增加更多测试覆盖
-- [ ] 优化 README 和首次体验
-- [ ] 引入更细的多样性控制和召回策略
+- [ ] 继续打磨 README 和首次接入体验
 
 ## License
 

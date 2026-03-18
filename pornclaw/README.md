@@ -1,57 +1,69 @@
-# PornClaw
+# PornClaw App
 
-PornClaw 是一个面向内容站点的系列推荐引擎原型。用户输入一个数据源 URL，系统抓取最近内容、聚合成系列、结合显式偏好和反馈，输出可解释的 Top 5 推荐。
+`pornclaw/` 是这个仓库里真正的 Python Web 应用目录。
 
-## 第一阶段目标
+如果你是第一次跑项目，建议先用 `demo://seed` 走通闭环；如果你要接真实平台，再看下面的 adapter 分类和环境变量说明。
 
-- 本地运行 Web 应用
-- 输入单个数据源 URL
-- 抓取近期内容并落库
-- 聚合到系列层级
-- 支持显式标签偏好、自然语言偏好、候选反馈、推荐反馈
-- 输出带理由的 Top 5 推荐
+## 第二阶段能力
 
-## 核心流程图
+第二阶段不再把“数据源接入”理解成一个单一 HTML parser，而是分成多种 adapter：
+
+- `demo`
+  - 内置假数据，保证零依赖演示
+- `generic_template`
+  - 处理普通 HTML 内容站点
+  - 支持卡片流优先、列表流降级补字段
+- `pornhub`
+  - 专门适配 Pornhub 公开页面
+  - 优先走站点专用解析，必要时浏览器抓取
+- `telegram`
+  - 通过 Telethon 读取 Telegram 公开频道
+
+## 支持的输入格式
+
+| Adapter | 输入示例 |
+|---|---|
+| `demo` | `demo://seed` |
+| `generic_template` | `https://example.com/feed` |
+| `pornhub` | `https://www.pornhub.com/model/<name>/videos` |
+| `telegram` | `https://t.me/<public_channel_name>` |
+
+Telegram 当前只支持公开频道根地址，不支持：
+
+- `t.me/+...`
+- `joinchat`
+- `t.me/c/...`
+- 私有群
+- Bot API 模式
+
+## Adapter 是怎么被选中的
+
+流程如下：
 
 ```text
-用户输入 URL + 标签偏好 + 自然语言偏好
-  -> source adapter 抓取最近条目
-  -> normalize 清洗标题 / 标签
-  -> aggregate 聚合为系列
-  -> 候选反馈补充画像
-  -> recommend 规则打分
-  -> explain 生成推荐理由
-  -> 推荐结果页反馈影响下一轮排序
+source_url + source_type + context
+  -> adapter registry
+  -> 选择 Demo / GenericTemplate / Pornhub / Telegram
+  -> 抓取 recent items
+  -> normalize
+  -> aggregate
+  -> recommend
 ```
 
-## 技术栈
+其中：
 
-- Python 3.11
-- FastAPI
-- Jinja2
-- SQLite
-- SQLAlchemy
-- requests + BeautifulSoup
-- pytest
-- Docker Compose
-
-## 目录结构
-
-```text
-pornclaw/
-  app/
-  tests/
-  scripts/
-  Dockerfile
-  docker-compose.yml
-  requirements.txt
-  README.md
-```
+- `source_type=auto` 会根据 URL 域名自动猜
+- `source_type` 显式指定时，会优先走对应 adapter
+- `context` 用来传非敏感配置，例如：
+  - `credential_profile`
+  - `max_items`
+  - `fetch_detail_pages`
 
 ## 本地运行
 
+### Demo 模式
+
 ```bash
-cd pornclaw
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -59,21 +71,123 @@ python scripts/init_db.py
 uvicorn app.main:app --reload
 ```
 
-浏览器打开 `http://127.0.0.1:8000`，首页默认已填入演示数据源 `demo://seed`。
+浏览器打开 `http://127.0.0.1:8000`，保持默认 `demo://seed` 即可。
 
-## Docker 启动
+### 真实平台模式
 
 ```bash
-cd pornclaw
-docker compose up --build
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m playwright install chromium
+python scripts/init_db.py
+uvicorn app.main:app --reload
 ```
 
-访问 `http://127.0.0.1:8000`。
+## 环境变量
 
-## Demo Source 方案
+基础运行参数：
 
-- 默认使用 `demo://seed`，由 `DemoSourceAdapter` 读取内置静态 HTML，保证首版闭环稳定可演示。
-- 同一个 adapter 也支持解析简单的外部静态 HTML 卡片结构；如果结构不符会返回明确错误。
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `REQUEST_TIMEOUT_SECONDS`
+- `REQUEST_RETRIES`
+- `CANDIDATE_SAMPLE_SIZE`
+- `RECOMMENDATION_LIMIT`
+- `ADAPTER_USER_AGENT`
+- `PLAYWRIGHT_HEADLESS`
+
+Telegram 官方 API：
+
+- `TELEGRAM_API_ID`
+- `TELEGRAM_API_HASH`
+- `TELEGRAM_SESSION_STRING`
+- `TELEGRAM_SESSION_FILE`
+
+说明：
+
+- Telegram 二期用的是 **官方客户端 API + Telethon**
+- 不会把明文凭证直接从前端提交到数据库
+- 前端/接口只提交 `credential_profile`
+
+## Supported Adapters
+
+### DemoSourceAdapter
+
+- 读取内置 HTML
+- 永远可用
+- 用于开发和演示基线
+
+### GenericTemplateAdapter
+
+- 处理常见外部 HTML 列表页
+- 如果列表页字段不够，可以回详情页补全
+- 适合“结构相对常规”的内容站点
+
+### PornhubAdapter
+
+- 处理公开 Pornhub 页面
+- 支持基于列表页提取最近内容
+- 优先使用专用 parser，而不是依赖 generic template 猜结构
+
+### TelegramChannelAdapter
+
+- 处理公开 Telegram 频道
+- 将消息流映射成内部 raw items
+- 默认按频道名聚合为系列
+
+## 如何新增一个模板 adapter
+
+如果你要接一个新的 HTML 站点，建议先走 generic template 路线，而不是直接写一个重量级专用 adapter。
+
+最小步骤：
+
+1. 确认列表页能否拿到标题和链接
+2. 判断它是卡片流还是列表流
+3. 确认是否需要详情页补字段
+4. 保证最终输出统一字段：
+   - `source_id`
+   - `title`
+   - `detail_url`
+   - `cover_url`
+   - `publish_time`
+   - `author_or_group`
+   - `tags_raw`
+   - `description_raw`
+   - `series_name_raw`
+   - `chapter_or_episode_raw`
+5. 给它补一个 fixture 测试
+
+## Troubleshooting
+
+### 数据源 URL 非法
+
+- 检查 `source_type` 是否和 URL 对得上
+- Telegram 只支持 `https://t.me/<username>`
+
+### 抓取为空
+
+- 站点结构可能变化
+- generic template 可能需要开启 `fetch_detail_pages`
+- Pornhub 页面可能需要浏览器抓取路径
+
+### Telegram 凭证错误
+
+- 检查 `TELEGRAM_API_ID`
+- 检查 `TELEGRAM_API_HASH`
+- 检查 `TELEGRAM_SESSION_STRING` 或 `TELEGRAM_SESSION_FILE`
+- 确认你访问的是公开频道
+
+### 页面结构变化
+
+- generic template 依赖常见 HTML 模式
+- 结构变化后应补 fixture，再调整选择器或专用 adapter
+
+### 网络 / 超时
+
+- 调高 `REQUEST_TIMEOUT_SECONDS`
+- 检查目标站点是否可访问
+- 对需要浏览器抓取的站点确认 Chromium 已安装
 
 ## 测试
 
@@ -81,9 +195,10 @@ docker compose up --build
 pytest
 ```
 
-## 未来迭代方向
+当前最重要的测试覆盖：
 
-- 增加更多 source adapter
-- 优化系列归并规则
-- 增加偏好解析测试与解释测试
-- 引入更精细的多样性控制和召回策略
+- adapter registry 选路
+- generic template 的卡片流/列表流解析
+- Pornhub parser 基于 fixture 的提取
+- Telegram 消息到 raw item 的映射
+- 二期 ingest schema

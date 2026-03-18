@@ -12,6 +12,34 @@
     <span>数据源 URL</span>
     <input type="text" name="source_url" value="{{ demo_url }}" required />
   </label>
+  <details class="panel">
+    <summary>高级数据源设置</summary>
+    <label>
+      <span>Source Type</span>
+      <select name="source_type">
+        {% for item in source_types %}
+        <option value="{{ item }}" {% if item == default_source_type %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Credential Profile</span>
+      <input type="text" name="credential_profile" placeholder="例如：telegram_default" />
+    </label>
+    <label>
+      <span>Channel / Feed Hint</span>
+      <input type="text" name="channel_or_feed_hint" placeholder="例如：频道用户名或分类名" />
+    </label>
+    <label>
+      <span>Max Items</span>
+      <input type="number" name="max_items" value="20" min="1" max="100" />
+    </label>
+    <label class="chip">
+      <input type="checkbox" name="fetch_detail_pages" value="true" checked />
+      抓详情页补字段（通用模板站点建议开启）
+    </label>
+    <p>Telegram 需要服务端预先配置凭证；Pornhub 优先走专用适配器，必要时会回退浏览器抓取。</p>
+  </details>
   <label>
     <span>自然语言偏好</span>
     <input type="text" name="free_text_intent" placeholder="例如：最近一周，偏剧情，不要 dark，长篇优先" />

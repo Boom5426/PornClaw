@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from app.adapters.base import BaseAdapter
+from app.adapters.base import BaseAdapter, SourceContext
 from app.config import settings
 
 
@@ -55,27 +55,36 @@ DEMO_HTML = """
 
 
 class DemoSourceAdapter(BaseAdapter):
-    def validate_source_url(self, url: str) -> bool:
+    name = "demo-source"
+
+    def supports(self, url: str, source_type: str) -> bool:
+        return url.startswith("demo://") or source_type == "demo"
+
+    def validate_source(self, url: str, context: SourceContext) -> bool:
         if url.startswith("demo://"):
             return True
         parsed = urlparse(url)
         return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
-    def detect_source_name(self, url: str) -> str:
+    def detect_source_name(self, url: str, context: SourceContext | None = None) -> str:
         if url.startswith("demo://"):
             return "demo-source"
         return urlparse(url).netloc
 
-    def fetch_recent_items(self, url: str) -> list[dict]:
-        if not self.validate_source_url(url):
+    def fetch_recent_items(self, url: str, context: SourceContext) -> list[dict]:
+        if not self.validate_source(url, context):
             raise ValueError("Invalid source URL")
         if url.startswith("demo://"):
             html = DEMO_HTML
         else:
-            response = requests.get(url, timeout=settings.request_timeout_seconds)
+            response = requests.get(
+                url,
+                timeout=settings.request_timeout_seconds,
+                headers={"User-Agent": settings.adapter_user_agent},
+            )
             response.raise_for_status()
             html = response.text
-        return self._parse_html(html)
+        return self._parse_html(html)[: context.max_items]
 
     def _parse_html(self, html: str) -> list[dict]:
         soup = BeautifulSoup(html, "html.parser")

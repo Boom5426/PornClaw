@@ -4,12 +4,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
-from app.db import Base, engine
+from app.db import Base, engine, ensure_runtime_schema
 import app.models  # noqa: F401
 from app.routes import feedback, pages, profile, recommend, source
 
 
 Base.metadata.create_all(bind=engine)
+ensure_runtime_schema()
 
 app = FastAPI(title="PornClaw")
 

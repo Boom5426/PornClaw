@@ -7,3 +7,5 @@ beautifulsoup4==4.12.3
 python-multipart==0.0.19
 pytest==8.3.4
 httpx==0.28.1
+telethon==1.42.0
+playwright==1.52.0

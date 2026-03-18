@@ -2,7 +2,8 @@ import json
 
 from sqlalchemy.orm import Session
 
-from app.adapters.demo_source import DemoSourceAdapter
+from app.adapters.base import SourceContext
+from app.adapters.registry import get_adapter_for_source
 from app.models import RawItem, SeriesItem, SourceSession
 from app.services.aggregate import aggregate_series
 from app.services.normalize import normalize_item
@@ -12,20 +13,30 @@ class AppError(Exception):
     pass
 
 
-def ingest_source(db: Session, source_url: str) -> SourceSession:
-    adapter = DemoSourceAdapter()
-    if not adapter.validate_source_url(source_url):
+def ingest_source(
+    db: Session,
+    source_url: str,
+    source_type: str = "auto",
+    context_payload: dict | None = None,
+) -> SourceSession:
+    context = SourceContext.from_payload(source_type=source_type, context=context_payload)
+    adapter = get_adapter_for_source(source_url, context)
+    if not adapter.validate_source(source_url, context):
         raise AppError("数据源 URL 非法。")
     session = SourceSession(
         source_url=source_url,
-        source_name=adapter.detect_source_name(source_url),
+        source_name=adapter.detect_source_name(source_url, context),
+        source_type=context.source_type,
+        adapter_name=adapter.name,
+        context_json=json.dumps(context.safe_metadata()),
+        meta_json=json.dumps({}),
         status="running",
     )
     db.add(session)
     db.commit()
     db.refresh(session)
     try:
-        raw_items = [normalize_item(item) for item in adapter.fetch_recent_items(source_url)]
+        raw_items = [normalize_item(item) for item in adapter.fetch_recent_items(source_url, context)]
         if not raw_items:
             raise AppError("抓取为空。")
         for item in raw_items:
@@ -62,6 +73,9 @@ def ingest_source(db: Session, source_url: str) -> SourceSession:
         session.status = "completed"
         session.raw_items_count = len(raw_items)
         session.series_count = len(aggregated)
+        session.meta_json = json.dumps(
+            {"adapter_name": adapter.name, "source_name": adapter.detect_source_name(source_url, context)}
+        )
         db.commit()
         db.refresh(session)
         return session
