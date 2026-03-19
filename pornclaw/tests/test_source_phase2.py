@@ -1,7 +1,7 @@
-from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy import select
 
+from app.db import get_db
 from app.adapters.pornhub import PornhubAdapter
 from app.main import app
 from app.models import RawItem, SeriesItem, SourceSession
@@ -17,13 +17,13 @@ def test_source_ingest_request_supports_source_type_and_context() -> None:
     )
 
     assert payload.source_type == "demo"
-    assert payload.context["max_items"] == 3
+    context = payload.context.model_dump() if hasattr(payload.context, "model_dump") else payload.context
+    assert context["max_items"] == 3
 
 
-def test_source_ingest_api_accepts_phase2_payload() -> None:
-    client = TestClient(app)
-
-    response = client.post(
+@pytest.mark.anyio
+async def test_source_ingest_api_accepts_phase2_payload(async_client) -> None:
+    response = await async_client.post(
         "/source/ingest",
         json={
             "source_url": "demo://seed",
@@ -39,14 +39,90 @@ def test_source_ingest_api_accepts_phase2_payload() -> None:
     assert body["adapter_name"] == "demo-source"
 
 
-def test_source_ingest_rejects_unsafe_explicit_source(monkeypatch) -> None:
+@pytest.mark.anyio
+async def test_recommendations_page_uses_app_local_demo_links(db_session, async_client) -> None:
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    try:
+        ingest_response = await async_client.post(
+            "/source/ingest",
+            json={
+                "source_url": "demo://seed",
+                "source_type": "demo",
+                "context": {"max_items": 4, "fetch_detail_pages": False},
+            },
+        )
+
+        assert ingest_response.status_code == 200
+        session_id = ingest_response.json()["session_id"]
+
+        recommendations_response = await async_client.get(f"/recommendations/{session_id}")
+
+        assert recommendations_response.status_code == 200
+        assert "https://demo.local" not in recommendations_response.text
+        assert "/demo-source/series/" in recommendations_response.text
+
+        detail_response = await async_client.get("/demo-source/series/dark-dungeon/ch9")
+
+        assert detail_response.status_code == 200
+        assert "Dark Dungeon" in detail_response.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_candidate_feedback_page_hides_series_after_like(db_session, async_client) -> None:
+    async def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    try:
+        ingest_response = await async_client.post(
+            "/source/ingest",
+            json={
+                "source_url": "demo://seed",
+                "source_type": "demo",
+                "context": {"max_items": 4, "fetch_detail_pages": False},
+            },
+        )
+
+        assert ingest_response.status_code == 200
+        session_id = ingest_response.json()["session_id"]
+
+        first_page = await async_client.get(f"/candidate-feedback/{session_id}")
+
+        assert first_page.status_code == 200
+        assert "Campus Hearts" in first_page.text
+
+        feedback_response = await async_client.post(
+            "/feedback/form",
+            data={
+                "session_id": session_id,
+                "series_id": 1,
+                "feedback_type": "like",
+                "next_path": f"/candidate-feedback/{session_id}",
+            },
+        )
+
+        assert feedback_response.status_code == 200
+        assert "Campus Hearts" not in feedback_response.text
+        assert "Sky Tale" in feedback_response.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_source_ingest_rejects_unsafe_explicit_source(monkeypatch, async_client) -> None:
     def fail_fetch(self, url, context):
         raise AssertionError("fetch_recent_items should not be called for an invalid source")
 
     monkeypatch.setattr(PornhubAdapter, "fetch_recent_items", fail_fetch)
-    client = TestClient(app)
 
-    response = client.post(
+    response = await async_client.post(
         "/source/ingest",
         json={
             "source_url": "https://evilpornhub.com/x",
@@ -58,15 +134,42 @@ def test_source_ingest_rejects_unsafe_explicit_source(monkeypatch) -> None:
     assert response.status_code == 400
 
 
-def test_feedback_api_rejects_unknown_feedback_type() -> None:
-    client = TestClient(app)
-
-    response = client.post(
+@pytest.mark.anyio
+async def test_feedback_api_rejects_unknown_feedback_type(async_client) -> None:
+    response = await async_client.post(
         "/feedback",
         json={
             "session_id": 1,
             "series_id": 1,
             "feedback_type": "boost",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_source_ingest_rejects_unknown_source_type(async_client) -> None:
+    response = await async_client.post(
+        "/source/ingest",
+        json={
+            "source_url": "demo://seed",
+            "source_type": "rss",
+            "context": {},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_source_ingest_rejects_non_positive_max_items(async_client) -> None:
+    response = await async_client.post(
+        "/source/ingest",
+        json={
+            "source_url": "demo://seed",
+            "source_type": "demo",
+            "context": {"max_items": 0, "fetch_detail_pages": False},
         },
     )
 

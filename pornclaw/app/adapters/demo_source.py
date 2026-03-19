@@ -1,4 +1,5 @@
 from datetime import datetime
+from html import escape
 from urllib.parse import urlparse
 
 import requests
@@ -8,50 +9,130 @@ from app.adapters.base import BaseAdapter, SourceContext
 from app.config import settings
 
 
-DEMO_HTML = """
-<html><body>
-<div class="item" data-id="1">
-  <a class="title" href="https://demo.local/series/campus-hearts/ch1">Campus Hearts Chapter 1</a>
-  <img src="https://img.demo.local/campus1.jpg" />
-  <span class="date">2026-03-16</span>
-  <span class="author">Studio A</span>
-  <span class="tags">romance,school,drama,longform</span>
-  <p class="desc">A school romance drama.</p>
-  <span class="series">Campus Hearts</span>
-  <span class="chapter">Chapter 1</span>
+def _demo_item(
+    source_id: str,
+    *,
+    title: str,
+    series_slug: str,
+    chapter_slug: str,
+    publish_date: str,
+    author_or_group: str,
+    tags: list[str],
+    description_raw: str,
+    series_name_raw: str,
+    chapter_or_episode_raw: str,
+) -> dict:
+    return {
+        "source_id": source_id,
+        "title": title,
+        "detail_url": f"/demo-source/series/{series_slug}/{chapter_slug}",
+        "cover_url": f"/static/demo/{series_slug}.svg",
+        "publish_time": datetime.fromisoformat(publish_date),
+        "author_or_group": author_or_group,
+        "tags": tags,
+        "description_raw": description_raw,
+        "series_name_raw": series_name_raw,
+        "chapter_or_episode_raw": chapter_or_episode_raw,
+        "series_slug": series_slug,
+        "chapter_slug": chapter_slug,
+    }
+
+
+DEMO_ITEMS = [
+    _demo_item(
+        "1",
+        title="Campus Hearts Chapter 1",
+        series_slug="campus-hearts",
+        chapter_slug="ch1",
+        publish_date="2026-03-16",
+        author_or_group="Studio A",
+        tags=["romance", "school", "drama", "longform"],
+        description_raw="A school romance drama.",
+        series_name_raw="Campus Hearts",
+        chapter_or_episode_raw="Chapter 1",
+    ),
+    _demo_item(
+        "2",
+        title="Campus Hearts Chapter 2",
+        series_slug="campus-hearts",
+        chapter_slug="ch2",
+        publish_date="2026-03-17",
+        author_or_group="Studio A",
+        tags=["romance", "school", "drama", "longform"],
+        description_raw="The story continues.",
+        series_name_raw="Campus Hearts",
+        chapter_or_episode_raw="Chapter 2",
+    ),
+    _demo_item(
+        "3",
+        title="Sky Tale Episode 5",
+        series_slug="sky-tale",
+        chapter_slug="ch5",
+        publish_date="2026-03-15",
+        author_or_group="Studio B",
+        tags=["fantasy", "soft", "longform"],
+        description_raw="Fantasy road story.",
+        series_name_raw="Sky Tale",
+        chapter_or_episode_raw="Episode 5",
+    ),
+    _demo_item(
+        "4",
+        title="Dark Dungeon Chapter 9",
+        series_slug="dark-dungeon",
+        chapter_slug="ch9",
+        publish_date="2026-03-02",
+        author_or_group="Studio C",
+        tags=["dark", "action", "explicit", "longform"],
+        description_raw="Dark action arc.",
+        series_name_raw="Dark Dungeon",
+        chapter_or_episode_raw="Chapter 9",
+    ),
+]
+
+
+def _build_demo_html(items: list[dict]) -> str:
+    nodes: list[str] = ["<html><body>"]
+    for item in items:
+        nodes.append(
+            """
+<div class="item" data-id="{source_id}">
+  <a class="title" href="{detail_url}">{title}</a>
+  <img src="{cover_url}" />
+  <span class="date">{publish_date}</span>
+  <span class="author">{author_or_group}</span>
+  <span class="tags">{tags}</span>
+  <p class="desc">{description_raw}</p>
+  <span class="series">{series_name_raw}</span>
+  <span class="chapter">{chapter_or_episode_raw}</span>
 </div>
-<div class="item" data-id="2">
-  <a class="title" href="https://demo.local/series/campus-hearts/ch2">Campus Hearts Chapter 2</a>
-  <img src="https://img.demo.local/campus2.jpg" />
-  <span class="date">2026-03-17</span>
-  <span class="author">Studio A</span>
-  <span class="tags">romance,school,drama,longform</span>
-  <p class="desc">The story continues.</p>
-  <span class="series">Campus Hearts</span>
-  <span class="chapter">Chapter 2</span>
-</div>
-<div class="item" data-id="3">
-  <a class="title" href="https://demo.local/series/sky-tale/ch5">Sky Tale Episode 5</a>
-  <img src="https://img.demo.local/sky.jpg" />
-  <span class="date">2026-03-15</span>
-  <span class="author">Studio B</span>
-  <span class="tags">fantasy,soft,longform</span>
-  <p class="desc">Fantasy road story.</p>
-  <span class="series">Sky Tale</span>
-  <span class="chapter">Episode 5</span>
-</div>
-<div class="item" data-id="4">
-  <a class="title" href="https://demo.local/series/dark-dungeon/ch9">Dark Dungeon Chapter 9</a>
-  <img src="https://img.demo.local/dark.jpg" />
-  <span class="date">2026-03-02</span>
-  <span class="author">Studio C</span>
-  <span class="tags">dark,action,explicit</span>
-  <p class="desc">Dark action arc.</p>
-  <span class="series">Dark Dungeon</span>
-  <span class="chapter">Chapter 9</span>
-</div>
-</body></html>
-"""
+""".format(
+                source_id=escape(item["source_id"]),
+                detail_url=escape(item["detail_url"]),
+                title=escape(item["title"]),
+                cover_url=escape(item["cover_url"]),
+                publish_date=escape(item["publish_time"].date().isoformat()),
+                author_or_group=escape(item["author_or_group"]),
+                tags=escape(",".join(item["tags"])),
+                description_raw=escape(item["description_raw"]),
+                series_name_raw=escape(item["series_name_raw"]),
+                chapter_or_episode_raw=escape(item["chapter_or_episode_raw"]),
+            )
+        )
+    nodes.append("</body></html>")
+    return "".join(nodes)
+
+
+DEMO_HTML = _build_demo_html(DEMO_ITEMS)
+
+
+def get_demo_item(series_slug: str, chapter_slug: str) -> dict | None:
+    for item in DEMO_ITEMS:
+        if item["series_slug"] == series_slug and item["chapter_slug"] == chapter_slug:
+            return {
+                **item,
+                "tags_raw": ",".join(item["tags"]),
+            }
+    return None
 
 
 class DemoSourceAdapter(BaseAdapter):

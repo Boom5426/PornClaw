@@ -39,5 +39,10 @@
   </article>
   {% endfor %}
 </section>
+{% if not candidates %}
+<section class="panel">
+  <p>这一轮候选系列都已经记录过反馈了，可以直接生成 Top 5 推荐。</p>
+</section>
+{% endif %}
 <a class="primary-btn inline-btn" href="/recommendations/{{ session_id }}">生成 Top 5 推荐</a>
 {% endblock %}

@@ -10,9 +10,14 @@ router = APIRouter(prefix="/source", tags=["source"])
 
 
 @router.post("/ingest", response_model=SourceIngestResponse)
-def ingest(payload: SourceIngestRequest, db: Session = Depends(get_db)) -> SourceIngestResponse:
+async def ingest(payload: SourceIngestRequest, db: Session = Depends(get_db)) -> SourceIngestResponse:
     try:
-        session = ingest_source(db, payload.source_url, payload.source_type, payload.context)
+        session = ingest_source(
+            db,
+            payload.source_url,
+            payload.source_type,
+            payload.context.model_dump(exclude_none=True),
+        )
     except AppError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return SourceIngestResponse(

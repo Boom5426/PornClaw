@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -10,11 +12,11 @@ from app.services.recommend import generate_recommendations, load_candidate_seri
 
 
 router = APIRouter(tags=["recommend"])
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 
 @router.get("/candidate-feedback/{session_id}", response_class=HTMLResponse)
-def candidate_feedback_page(session_id: int, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+async def candidate_feedback_page(session_id: int, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     candidates = load_candidate_series(db, session_id)
     return templates.TemplateResponse(
         request,
@@ -24,7 +26,7 @@ def candidate_feedback_page(session_id: int, request: Request, db: Session = Dep
 
 
 @router.get("/recommendations/{session_id}", response_class=HTMLResponse)
-def recommendations_page(session_id: int, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+async def recommendations_page(session_id: int, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     recommendations = generate_recommendations(db, session_id)
     return templates.TemplateResponse(
         request,
@@ -34,7 +36,7 @@ def recommendations_page(session_id: int, request: Request, db: Session = Depend
 
 
 @router.post("/recommend", response_model=RecommendResponse)
-def recommend(payload: RecommendRequest, db: Session = Depends(get_db)) -> RecommendResponse:
+async def recommend(payload: RecommendRequest, db: Session = Depends(get_db)) -> RecommendResponse:
     try:
         top = generate_recommendations(db, payload.session_id)
     except ValueError as exc:

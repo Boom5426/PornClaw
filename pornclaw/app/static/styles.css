@@ -71,6 +71,19 @@ details.panel summary {
 }
 .card { padding: 1rem; }
 .card img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 14px; background: #eee; }
+.detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 1.5rem;
+  align-items: start;
+}
+.detail-cover {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 18px;
+  background: #eee;
+}
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
 .actions form { margin: 0; }
 .score-box pre {
@@ -83,4 +96,5 @@ details.panel summary {
 .reason { min-height: 4.5rem; }
 @media (max-width: 640px) {
   .hero h1 { font-size: 2rem; }
+  .detail-layout { grid-template-columns: 1fr; }
 }

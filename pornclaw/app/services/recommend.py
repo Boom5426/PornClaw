@@ -64,7 +64,11 @@ def rank_series(
 
 def load_candidate_series(db: Session, session_id: int) -> list[dict]:
     series_rows = db.scalars(select(SeriesItem).where(SeriesItem.session_id == session_id)).all()
-    items = [_series_model_to_dict(row) for row in series_rows]
+    feedback_series_ids = {
+        series_id
+        for series_id in db.scalars(select(UserFeedback.series_id).where(UserFeedback.session_id == session_id))
+    }
+    items = [_series_model_to_dict(row) for row in series_rows if row.id not in feedback_series_ids]
     items.sort(
         key=lambda item: (item["update_count_7d"], coerce_utc_naive(item["latest_update_time"]) or datetime.min),
         reverse=True,

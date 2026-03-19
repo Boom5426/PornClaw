@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -15,6 +16,7 @@ for path in [str(REPO_ROOT), str(ROOT)]:
         sys.path.insert(0, path)
 
 import app.models  # noqa: F401
+from app.main import app
 from app.db import Base
 
 
@@ -34,3 +36,14 @@ def db_session():
         session.close()
         Base.metadata.drop_all(bind=engine)
         engine.dispose()
+
+
+@pytest.fixture
+async def async_client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        follow_redirects=True,
+    ) as client:
+        yield client

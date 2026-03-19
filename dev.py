@@ -38,6 +38,20 @@ def playwright_marker_path(app_dir: Path) -> Path:
     return state_dir(app_dir) / "playwright-chromium.ok"
 
 
+def runtime_dependencies_ready(python_path: Path) -> bool:
+    probe = subprocess.run(
+        [
+            str(python_path),
+            "-c",
+            "import fastapi,uvicorn,jinja2,sqlalchemy,requests,bs4,multipart",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return probe.returncode == 0
+
+
 def needs_requirements_install(app_dir: Path) -> bool:
     marker = requirements_marker_path(app_dir)
     requirements = app_dir / "requirements.txt"
@@ -84,12 +98,21 @@ def main(argv: list[str] | None = None, root_dir: Path | None = None) -> int:
     python_path = venv_python(app_dir)
 
     if needs_requirements_install(app_dir):
-        run_checked(
-            [str(python_path), "-m", "pip", "install", "-r", "requirements.txt"],
-            app_dir,
-            "Installing Python dependencies",
-        )
-        write_requirements_marker(app_dir)
+        try:
+            run_checked(
+                [str(python_path), "-m", "pip", "install", "-r", "requirements.txt"],
+                app_dir,
+                "Installing Python dependencies",
+            )
+            write_requirements_marker(app_dir)
+        except subprocess.CalledProcessError:
+            if not runtime_dependencies_ready(python_path):
+                raise
+            print(
+                "Warning: dependency install failed; continuing with existing core runtime only. "
+                "Optional sources may be unavailable until pip install succeeds.",
+                file=sys.stderr,
+            )
 
     run_checked([str(python_path), "scripts/init_db.py"], app_dir, "Initializing database")
 

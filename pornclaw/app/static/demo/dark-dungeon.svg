@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-labelledby="title desc">
+  <title id="title">Dark Dungeon demo cover</title>
+  <desc id="desc">Moody placeholder cover for the Dark Dungeon demo series.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2b2626" />
+      <stop offset="100%" stop-color="#6f3b2f" />
+    </linearGradient>
+  </defs>
+  <rect width="900" height="1200" fill="url(#bg)" />
+  <rect x="120" y="120" width="660" height="960" rx="42" fill="#120f10" opacity="0.34" />
+  <path d="M180 940 L310 520 L450 700 L590 430 L720 940 Z" fill="#d27a4b" opacity="0.35" />
+  <text x="92" y="220" fill="#f7eee8" font-family="Georgia, serif" font-size="84" font-weight="700">Dark</text>
+  <text x="92" y="314" fill="#f7eee8" font-family="Georgia, serif" font-size="84" font-weight="700">Dungeon</text>
+  <text x="92" y="930" fill="#eedfd6" font-family="Georgia, serif" font-size="34">PornClaw Demo Cover</text>
+</svg>

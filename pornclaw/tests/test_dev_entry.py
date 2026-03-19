@@ -163,3 +163,36 @@ def test_reuses_existing_environment_without_reinstalling_everything(monkeypatch
         ([str(venv_python), "scripts/init_db.py"], app_dir, "Initializing database"),
         ([str(venv_python), "-m", "uvicorn", "app.main:app", "--reload"], app_dir, "Starting development server"),
     ]
+
+
+def test_requirements_install_failure_warns_but_can_continue_with_existing_runtime(
+    monkeypatch,
+    capsys,
+    tmp_path: Path,
+) -> None:
+    dev = _load_dev_module()
+    main = _require_attr(dev, "main")
+
+    repo_root = tmp_path
+    app_dir = repo_root / "pornclaw"
+    (app_dir / "scripts").mkdir(parents=True)
+    (app_dir / "requirements.txt").write_text("fastapi==0.115.6\ntelethon==1.42.0\n", encoding="utf-8")
+    (app_dir / ".venv" / "bin").mkdir(parents=True)
+    (app_dir / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+
+    calls: list[tuple[list[str], Path, str]] = []
+
+    def fake_run_checked(cmd, cwd, label):
+        calls.append((cmd, cwd, label))
+        if label == "Installing Python dependencies":
+            raise subprocess.CalledProcessError(returncode=1, cmd=cmd)
+
+    monkeypatch.setattr(dev, "run_checked", fake_run_checked, raising=False)
+    monkeypatch.setattr(dev, "runtime_dependencies_ready", lambda python_path: True, raising=False)
+
+    main(["--skip-playwright"], root_dir=repo_root)
+
+    stderr = capsys.readouterr().err.lower()
+    assert "warning" in stderr
+    assert any(label == "Initializing database" for _, _, label in calls)
+    assert any(label == "Starting development server" for _, _, label in calls)

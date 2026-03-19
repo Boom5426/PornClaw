@@ -11,7 +11,7 @@ router = APIRouter(tags=["feedback"])
 
 
 @router.post("/feedback", response_model=FeedbackResponse)
-def create_feedback(payload: FeedbackRequest, db: Session = Depends(get_db)) -> FeedbackResponse:
+async def create_feedback(payload: FeedbackRequest, db: Session = Depends(get_db)) -> FeedbackResponse:
     try:
         summary = store_feedback(db, payload.session_id, payload.series_id, payload.feedback_type)
     except ValueError as exc:
@@ -20,7 +20,7 @@ def create_feedback(payload: FeedbackRequest, db: Session = Depends(get_db)) -> 
 
 
 @router.post("/feedback/form")
-def create_feedback_from_form(
+async def create_feedback_from_form(
     session_id: int = Form(...),
     series_id: int = Form(...),
     feedback_type: str = Form(...),

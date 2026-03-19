@@ -12,7 +12,7 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 
 
 @router.post("/create", response_model=ProfileCreateResponse)
-def create_profile(payload: ProfileCreateRequest, db: Session = Depends(get_db)) -> ProfileCreateResponse:
+async def create_profile(payload: ProfileCreateRequest, db: Session = Depends(get_db)) -> ProfileCreateResponse:
     profile = create_or_update_profile(
         db,
         payload.session_id,

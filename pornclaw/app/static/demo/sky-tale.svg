@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-labelledby="title desc">
+  <title id="title">Sky Tale demo cover</title>
+  <desc id="desc">Cool-toned placeholder cover for the Sky Tale demo series.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d7edf8" />
+      <stop offset="100%" stop-color="#507a8a" />
+    </linearGradient>
+  </defs>
+  <rect width="900" height="1200" fill="url(#bg)" />
+  <path d="M0 850 Q180 720 360 790 T900 720 V1200 H0 Z" fill="#f7fbfd" opacity="0.65" />
+  <circle cx="700" cy="240" r="150" fill="#f8fdff" opacity="0.72" />
+  <text x="82" y="240" fill="#f7fbfd" font-family="Georgia, serif" font-size="104" font-weight="700">Sky</text>
+  <text x="82" y="340" fill="#f7fbfd" font-family="Georgia, serif" font-size="104" font-weight="700">Tale</text>
+  <text x="82" y="930" fill="#eef9fd" font-family="Georgia, serif" font-size="34">PornClaw Demo Cover</text>
+</svg>

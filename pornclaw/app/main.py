@@ -25,7 +25,7 @@ app.include_router(recommend.router)
 
 
 @app.get("/demo-source", response_class=HTMLResponse)
-def demo_source() -> HTMLResponse:
+async def demo_source() -> HTMLResponse:
     return HTMLResponse(
         """
         <html><body><h1>PornClaw Demo Source</h1>

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel detail-layout">
+  <div>
+    <p class="eyebrow">Demo Source</p>
+    <h1>{{ item.title }}</h1>
+    <p class="reason">{{ item.description_raw }}</p>
+    <div class="tag-grid">
+      {% for tag in item.tags %}
+      <span class="chip">{{ tag }}</span>
+      {% endfor %}
+    </div>
+    <p><strong>系列：</strong>{{ item.series_name_raw }}</p>
+    <p><strong>章节：</strong>{{ item.chapter_or_episode_raw }}</p>
+    <p><strong>作者 / 团队：</strong>{{ item.author_or_group }}</p>
+    <p><strong>发布时间：</strong>{{ item.publish_time.strftime("%Y-%m-%d") if item.publish_time else "未知" }}</p>
+    <div class="actions">
+      <a class="inline-btn" href="/">返回首页</a>
+      <a class="inline-btn" href="/demo-source">查看 demo 说明</a>
+    </div>
+  </div>
+  {% if item.cover_url %}
+  <img class="detail-cover" src="{{ item.cover_url }}" alt="{{ item.series_name_raw }}" />
+  {% endif %}
+</section>
+{% endblock %}

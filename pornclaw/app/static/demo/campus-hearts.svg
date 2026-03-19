@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-labelledby="title desc">
+  <title id="title">Campus Hearts demo cover</title>
+  <desc id="desc">Warm-toned placeholder cover for the Campus Hearts demo series.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f2d3bb" />
+      <stop offset="100%" stop-color="#bc5a3c" />
+    </linearGradient>
+  </defs>
+  <rect width="900" height="1200" fill="url(#bg)" />
+  <circle cx="710" cy="220" r="170" fill="#fff2e6" opacity="0.55" />
+  <circle cx="250" cy="920" r="240" fill="#7a2d1b" opacity="0.32" />
+  <text x="80" y="220" fill="#fff7ef" font-family="Georgia, serif" font-size="94" font-weight="700">Campus</text>
+  <text x="80" y="320" fill="#fff7ef" font-family="Georgia, serif" font-size="94" font-weight="700">Hearts</text>
+  <text x="80" y="930" fill="#fff3ea" font-family="Georgia, serif" font-size="34">PornClaw Demo Cover</text>
+</svg>
